@@ -53,7 +53,17 @@ RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate
 # so that module's go.mod must exist before `go mod download`.
 COPY go.mod go.sum ./
 COPY third_party/anydoc-go/go.mod third_party/anydoc-go/go.mod
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+# 增加重试+兜底代理，解决github actions网络波动
+RUN --mount=type=cache,target=/go/pkg/mod \
+    export GOPROXY=https://proxy.golang.com.cn,direct; \
+    export GOSUMDB=off; \
+    for i in 1 2 3; do \
+        echo "go mod download attempt $i"; \
+        go mod download && break; \
+        echo "download failed, sleep 10s retry"; \
+        sleep 10; \
+    done
+
 COPY cmd/download cmd/download
 RUN go run cmd/download/duckdb/duckdb.go
 COPY . .
@@ -79,8 +89,15 @@ ENV PATH=/usr/local/cargo/bin:$PATH
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     if [ "$WITH_ANYDOC" = "1" ]; then \
+        export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static; \
+        export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup; \
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
             | sh -s -- -y --profile minimal --default-toolchain stable && \
+        mkdir -p $CARGO_HOME; \
+        echo '[source.crates-io]' > $CARGO_HOME/config.toml; \
+        echo 'replace-with = "ustc"' >> $CARGO_HOME/config.toml; \
+        echo '[source.ustc]' >> $CARGO_HOME/config.toml; \
+        echo 'registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' >> $CARGO_HOME/config.toml; \
         ./scripts/build-anydoc-lib.sh; \
     fi
 
@@ -94,11 +111,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     export GO_VERSION="$(go version)"; \
+    export CGO_ENABLED=1; \
     if [ "$WITH_ANYDOC" = "1" ]; then \
-        make build-prod GO_BUILD_TAGS=anydoc; \
+        make -j1 build-prod GO_BUILD_TAGS=anydoc GOFLAGS="-v"; \
     else \
-        make build-prod; \
+        make -j1 build-prod GOFLAGS="-v"; \
     fi
+
 RUN --mount=type=cache,target=/go/pkg/mod cp -r /go/pkg/mod/github.com/yanyiwu/ /app/yanyiwu/
 
 # Final stage
@@ -167,7 +186,6 @@ RUN chmod +x ./scripts/*.sh
 
 # Expose ports
 EXPOSE 8080
-
 
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
 CMD ["./WeKnora"]
