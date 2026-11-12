@@ -120,6 +120,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout code
         uses: actions/checkout@v6
 
@@ -159,9 +170,12 @@ jobs:
             VERSION_ARG=${{ steps.version.outputs.version }}
             COMMIT_ID_ARG=${{ steps.version.outputs.commit_id }}
             BUILD_TIME_ARG=${{ steps.version.outputs.build_time }}
-            WITH_ANYDOC=1
+            WITH_ANYDOC=0
+            GOPROXY_ARG=https://goproxy.cn,direct
+            APK_MIRROR_ARG=mirrors.tencent.com
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=build-app
           cache-to: type=gha,scope=build-app,mode=max
-          provenance: false  # 关闭OCI provenance，适配阿里云ACR
+          provenance: false
+          options: --progress plain
