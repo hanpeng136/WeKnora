@@ -58,6 +58,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=build-ui
           cache-to: type=gha,scope=build-ui,mode=max
+          provenance: false  # 关闭OCI provenance，适配阿里云ACR
 
   build-docreader:
     runs-on: ubuntu-latest
@@ -113,6 +114,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=build-docreader
           cache-to: type=gha,scope=build-docreader,mode=max
+          provenance: false  # 关闭OCI provenance，适配阿里云ACR
 
   build-app:
     runs-on: ubuntu-latest
@@ -162,3 +164,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=build-app
           cache-to: type=gha,scope=build-app,mode=max
+          provenance: false  # 关闭OCI provenance，适配阿里云ACR
